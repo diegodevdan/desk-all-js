@@ -1,0 +1,10 @@
+{"Item":{"player_id":{"S":"player1"},"game_id":{"N":"1"},"top_score":{"N":"9192"},"date":{"S":"2023-02-20T06:32:02Z"}}}
+{"Item":{"player_id":{"S":"player8"},"game_id":{"N":"2"},"top_score":{"N":"347820"},"date":{"S":"2023-02-28T08:34:19Z"}}}
+{"Item":{"player_id":{"S":"player7"},"game_id":{"N":"2"},"top_score":{"N":"50295"},"date":{"S":"2023-03-20T00:07:36Z"}}}
+{"Item":{"player_id":{"S":"player6"},"game_id":{"N":"2"},"top_score":{"N":"91892"},"date":{"S":"2023-02-13T00:19:40Z"}}}
+{"Item":{"player_id":{"S":"player5"},"game_id":{"N":"2"},"top_score":{"N":"706824"},"date":{"S":"2023-02-28T08:34:19Z"}}}
+{"Item":{"player_id":{"S":"player3"},"game_id":{"N":"2"},"top_score":{"N":"910293"},"date":{"S":"2023-03-24T22:55:00Z"}}}
+{"Item":{"player_id":{"S":"player3"},"game_id":{"N":"1"},"top_score":{"N":"102921"},"date":{"S":"2023-02-12T00:19:40Z"}}}
+{"Item":{"player_id":{"S":"player1"},"game_id":{"N":"2"},"top_score":{"N":"10902"},"date":{"S":"2023-02-12T00:19:40Z"}}}
+{"Item":{"player_id":{"S":"player2"},"game_id":{"N":"1"},"top_score":{"N":"20918"},"date":{"S":"2023-03-16T13:10:59Z"}}}
+{"Item":{"player_id":{"S":"player8"},"game_id":{"N":"1"},"top_score":{"N":"30123"},"date":{"S":"2023-02-01T00:07:36Z"}}}

@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Metadata:
+  License: Apache-2.0
+Description: 'Creates a DynamoDB table named scores and uses an inline Lambda function to populate it with data, then load a function highscores to return the high scores for a game from a global secondary index. Originally built for DE.1 (Serverless) series.'
+Parameters:
+  Stage:
+    Type: String
+    Default: prod
+    AllowedValues:
+      - dev
+      - test
+      - stage
+      - prod
+Resources:
+
+  myDynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "scores-${Stage}"
+      AttributeDefinitions:
+        - AttributeName: player_id
+          AttributeType: S
+        - AttributeName: game_id
+          AttributeType: N
+        - AttributeName: top_score
+          AttributeType: N
+      KeySchema:
+        - AttributeName: player_id
+          KeyType: HASH
+        - AttributeName: game_id
+          KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 10
+      GlobalSecondaryIndexes:
+        - IndexName: !Sub "scores-${Stage}-index"
+          KeySchema:
+            - AttributeName: game_id
+              KeyType: HASH
+            - AttributeName: top_score
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+          ProvisionedThroughput:
+            ReadCapacityUnits: 5
+            WriteCapacityUnits: 5
+
+  IamRoleLambdaExecution:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      RoleName: !Sub "DE1001-LambdaRole-${Stage}"
+      PermissionsBoundary: "arn:aws:iam::281767876316:policy/LabSecureAccess"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+      Policies:
+        - PolicyName: !Sub "DE1001-LambdaCloudWatchLogsPolicy-${Stage}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:CreateLogGroup"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/DDBDataLoader*:*"
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:*"
+                Resource:
+                  - !Sub "arn:aws:dynamodb:us-east-2:${AWS::AccountId}:table/scores-${Stage}"
+
+  IamRoleHighScoresLambda:
+    Type: "AWS::IAM::Role"
+    Properties:
+      Path: "/"
+      RoleName: !Sub "DE1001-LambdaRole-Highscores-${Stage}"
+      PermissionsBoundary: "arn:aws:iam::281767876316:policy/LabSecureAccess"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "lambda.amazonaws.com"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+      Policies:
+        - PolicyName: !Sub "DE1001-LambdaCloudWatchLogsPolicy-Highscores-${Stage}"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: "Allow"
+                Action:
+                  - "logs:CreateLogStream"
+                  - "logs:CreateLogGroup"
+                  - "logs:PutLogEvents"
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/lambda/highscores*:*"
+              - Effect: "Allow"
+                Action:
+                  - "dynamodb:*"
+                Resource:
+                  - !Sub "arn:aws:dynamodb:us-east-2:${AWS::AccountId}:table/scores-${Stage}"
+                  - !Sub "arn:aws:dynamodb:us-east-2:${AWS::AccountId}:table/scores-${Stage}/index/*"
+
+  HighScoresLambdaFunction:
+    Type: "AWS::Lambda::Function"
+    Properties:
+      Runtime: python3.9
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+
+          def lambda_handler(event, context):
+              ddb = boto3.client("dynamodb")
+              game_id = 0
+              if 'queryStringParameters' in event:
+                  if 'game_id' in event['queryStringParameters']:
+                      game_id = event['queryStringParameters']['game_id']
+              else:
+                  game_id = event['game_id']
+
+              # Get the stage from API Gateway. If not an API Gateway call, 
+              # get the stage from the Lambda environment variables. 
+              stage = ''
+              if 'stageVariables' in event and 'Stage' in event['stageVariables']:
+                  stage = event['stageVariables']['Stage']
+              else:
+                  stage = os.environ['Stage']
+
+              ddb_table = f"scores-{stage}"
+              ddb_table_index = f"scores-{stage}-index"
+
+              resp = ddb.query(
+                  TableName=ddb_table,
+                  IndexName=ddb_table_index,
+                  KeyConditionExpression="game_id=:gameId",
+                  ExpressionAttributeValues={":gameId" : {"N" : game_id}},
+                  ScanIndexForward=False
+              )
+
+              return {
+                  "statusCode": 200,
+                  "headers": {
+                      "Content-Type": "application/json"
+                  },
+                  "body": json.dumps(resp['Items'])
+              }
+
+      Description: Lambda function that ingests data into a DynamoDB table.
+      FunctionName: !Sub "highscores-${Stage}"
+      Handler: index.lambda_handler
+      Environment:
+        Variables:
+          Stage: !Sub ${Stage}
+      Role : !GetAtt IamRoleHighScoresLambda.Arn
+
+Outputs:
+  TableName:
+    Value: !Ref 'myDynamoDBTable'
+    Description: Table name of the newly created DynamoDB table
